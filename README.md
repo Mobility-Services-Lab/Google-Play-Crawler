@@ -1,6 +1,6 @@
 # Google-Play-Crawler
 ## Crawler for gathering app information from Googple Play
-###### It adds data gathered from a given app page, then searches page for the links for similar apps and recursively gatheres data from them. 
+##### It adds data gathered from a given app page, then searches page for the links for similar apps and recursively gatheres data from them. 
 # How-To
 ## Dependencies: 
 ##### org.apache.commons:commons-csv:1.4
