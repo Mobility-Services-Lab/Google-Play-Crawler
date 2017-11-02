@@ -1,3 +1,4 @@
+import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -11,16 +12,23 @@ public class CrawlForApps {
     private static HashMap<String, Application> Data;
     private static boolean printResults = false;
     private static boolean searchDeep = true;
-    private static int Depth = 8;
+    private static int Depth = 0;
     private static int currentDepth = 0;
     private static int appsAddedToDB = 0;
-    private static int maxAppsToGatherAtATime = 500000;
+    private static int appsInDBatTheStart = 0;
+    private static int maxAppsToGatherAtATime = 100000;
     private static boolean continueAfterError = true;
-    private static String CSVName = "NewData.csv";
+    private static String CSVName = "You should choose a name for your CSV.csv";
     private static int maxAttemptsForEachApp = 10;
+    private static String lastAddress = "";
+    private static int attemptsForLastAddress = 0;
 
     private static void parsePage(String address){
-        if (appsAddedToDB>= maxAppsToGatherAtATime) return;
+        if (!lastAddress.equals(address)) {
+            attemptsForLastAddress=0;
+            lastAddress=address;
+        } else attemptsForLastAddress++;
+        if ((Data.size()-appsInDBatTheStart)>= maxAppsToGatherAtATime) return;
         Document page = null;
         String inApp = "";
         String ads = "";
@@ -28,13 +36,11 @@ public class CrawlForApps {
         boolean hasAds = false;
         ArrayList<String> links;
         boolean searchedForLinks = false;
-        int errorsInARow = 0;
         //to avoid making same thing for several times
         if (Data.containsKey(address) && Data.get(address).isSearchedDeep()) return;
         try {
             //get page
             page = Jsoup.connect("https://play.google.com/store/apps/details?id="+address).get();
-            errorsInARow=0;
             //parse page
 
             String name = getName(page);
@@ -88,22 +94,19 @@ public class CrawlForApps {
             //save every 100 operations
             if (appsAddedToDB%100==0) {
                 Save(Data, CSVName);
-                System.out.println(((float)Math.round((float)appsAddedToDB/ maxAppsToGatherAtATime *1000)/10)+"% accomplished. "+appsAddedToDB + " app pages proceeded out of "+ maxAppsToGatherAtATime +".");
+                System.out.println(((float)Math.round((float)(Data.size()-appsInDBatTheStart)/ maxAppsToGatherAtATime *1000)/10)+"% accomplished. "+(Data.size()-appsInDBatTheStart) + " app pages proceeded out of "+ maxAppsToGatherAtATime +".");
             }
         } catch (IOException e) {
             e.printStackTrace();
-            errorsInARow++;
             Save(Data, CSVName);
-            if (continueAfterError&errorsInARow<maxAttemptsForEachApp) parsePage(address);
+            if (continueAfterError&attemptsForLastAddress<maxAttemptsForEachApp) parsePage(address);
             System.out.println("Caught an IOException. If you see this  - then the catch-block worked, if you don't - you won't know that you don't))");
         } catch (NullPointerException n){
             n.printStackTrace();
-            errorsInARow++;
             Save(Data, CSVName);
-            if (continueAfterError&errorsInARow<maxAttemptsForEachApp) parsePage(address);
+            if (continueAfterError&attemptsForLastAddress<maxAttemptsForEachApp) parsePage(address);
             System.out.println("Caught a nullPointerException. If you see this  - then the catch-block worked, if you don't - you won't know that you don't))");
         }
-
     }
     private static String getName(Document page){
         return page.getElementsByClass("id-app-title").text();
@@ -168,7 +171,9 @@ public class CrawlForApps {
     }
     private static HashMap<String, Application> Load(String CSVName){
         ArrayList <Application> LoadedList = SaveNLoad.loadFromCSV(CSVName);
-        return convertToHashMap(LoadedList);
+        HashMap temp = convertToHashMap(LoadedList);
+        appsInDBatTheStart = temp.size();
+        return temp;
     }
     private static ArrayList<Application> convertToArrayList(HashMap<String, Application> Data){
         ArrayList <Application> TempList = new ArrayList<>();
@@ -184,7 +189,8 @@ public class CrawlForApps {
         }
         return TempMap;
     }
-    private static void runTheMapThrough(HashMap<String, Application> Map){
+    private static void runTheMapThrough(HashMap<String, Application> Map, int depth){
+        Depth = depth;
         ArrayList<String> Temp = new ArrayList<>();
         Temp.addAll(Map.keySet());
         try {
@@ -197,15 +203,22 @@ public class CrawlForApps {
 
         }
     }
-
+    private static void crawlForApps(int depth){
+        Depth = depth;
+        String[] list = {"com.ultimateguitar.tabs","com.media.saturn","de.mcdonalds.mcdonaldsinfoapp","com.ea.games.r3_row",
+                "com.expedia.bookings","in.softecks.economics","clone.whatsapp","jp.gr.java_conf.matchama.SceneSwitch",
+                "com.blendr.mobile","net.booksy.customer","com.sparkpeople.androidtracker","com.tweber.stickfighter.activities",
+                "com.globalexperts.jobsearch","com.anmol.vachnanquotes"};
+        for (int a=0;a<list.length;a++){
+            parsePage(list[a]);
+        }
+    }
 
     public static void main(String args[]){
-        Data =  Load(CSVName);
-//        parsePage("com.ultimateguitar.tabs");
-//        parsePage("com.media.saturn");
-//        parsePage("de.mcdonalds.mcdonaldsinfoapp");
-//        parsePage("com.ea.games.r3_row");
-        runTheMapThrough(Data);
-        Save(Data, CSVName);
+        CSVName = "Data.csv";                   //name of CSV file in which the data will be saved/ from which will be read
+        Data =  Load(CSVName);                  //loads already gathered App data from CSV, if given
+        crawlForApps(6);                  //gatheres data recursively, starting with apps stored in the method. needs depth of recursive search to be given
+        runTheMapThrough(Data,3);         //gatheres data further - same as crawlForApps, but instead of "starting apps" uses all apps in List Data
+        Save(Data, CSVName);                    //save to CSV
     }
 }
